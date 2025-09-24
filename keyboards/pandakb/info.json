@@ -1,8 +1,8 @@
 {
-    "keyboard_name": "Corne V3",
-    "manufacturer": "PandaKB.COM",
+    "keyboard_name": "rediator",
+    "manufacturer": "brainkb",
     "url": "",
-    "maintainer": "PandaKB.COM",
+    "maintainer": "brainkb",
     "usb": {
         "vid": "0x1666",
         "pid": "0x0006",
