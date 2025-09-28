@@ -3,8 +3,18 @@
 #define M_2PI (2*M_PI)   // 2π
 
 #define ENEMY_ROWS 4
-#define ENEMY_COLS 3
+#define ENEMY_COLS 4
 #define ENEMY_SPACING 8
+#define MAX_BULLETS 8  // Maximum number of bullets on screen at once
+
+typedef struct {
+    float x;
+    float y;
+    bool active;
+    float speed;
+} Bullet;
+
+Bullet bullets[MAX_BULLETS];  // Array to hold all bullets
 
 typedef struct {
     float x;
@@ -13,6 +23,11 @@ typedef struct {
 } Enemy;
 
 Enemy wave[ENEMY_ROWS * ENEMY_COLS];
+
+/* wave movement */
+float wave_x = 0.0f;
+float wave_speed = 10.0f;
+int wave_direction = 1;  // 1 for right, -1 for left
 
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
     return OLED_ROTATION_270;
@@ -83,6 +98,10 @@ static float lerp(float start, float end, float t) {
     return start + t * (end - start);
 }
 
+static int round_float(float x) {
+    return (x >= 0.0f) ? (int)(x + 0.5f) : (int)(x - 0.5f);
+}
+
 static void draw_line(int x0, int y0, int x1, int y1) {
     int dx = abs(x1 - x0);
     int dy = -abs(y1 - y0);
@@ -134,6 +153,46 @@ static void draw_circle(int xc, int yc, int r) {
             y--;
         }
         x++;
+    }
+}
+
+static void init_bullets(void) {
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        bullets[i].active = false;
+    }
+}
+
+static void shoot_bullet(float x, float y) {
+    // Find first inactive bullet
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        if (!bullets[i].active) {
+            bullets[i].x = x;
+            bullets[i].y = y;
+            bullets[i].active = true;
+            bullets[i].speed = -30.0f;  // Negative speed means moving up
+            return;
+        }
+    }
+}
+
+static void update_bullets(float dt) {
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        if (bullets[i].active) {
+            bullets[i].y += bullets[i].speed * dt;
+
+            // Deactivate bullets that go off screen
+            if (bullets[i].y < 0) {
+                bullets[i].active = false;
+            }
+        }
+    }
+}
+
+static void draw_bullets(void) {
+    for (int i = 0; i < MAX_BULLETS; i++) {
+        if (bullets[i].active) {
+            oled_write_pixel(round_float(bullets[i].x), round_float(bullets[i].y), true);
+        }
     }
 }
 
@@ -195,12 +254,19 @@ static void draw_enemy(int x, int y) {
 
 static void init_wave(void) {
     // Calculate starting position for first enemy
-    int start_x = 0;   // Start from left edge
-    int start_y = 12;  // Start from top of screen with some margin
+    int start_x = 0;
+    int start_y = 12;
 
     // Create enemies in a grid formation
     for (int row = 0; row < ENEMY_ROWS; row++) {
         for (int col = 0; col < ENEMY_COLS; col++) {
+
+            if (row % 2 == 1) {
+                // Offset every other row for staggered formation
+                start_x = -ENEMY_SPACING / 2; // Half spacing offset
+            } else {
+                start_x = 0;
+            }
 
             Enemy *e = &wave[row * ENEMY_COLS + col];
             e->x = start_x + (col * ENEMY_SPACING);
@@ -210,34 +276,45 @@ static void init_wave(void) {
     }
 }
 
+static void update_wave(float dt) {
+    // Move wave horizontally
+    wave_x += wave_speed * wave_direction * dt;
+
+    // Check boundaries and reverse direction
+    if (wave_x >= ENEMY_SPACING) {  // Screen width - enemy width
+        wave_direction = -1;
+        wave_x = ENEMY_SPACING;  // Prevent overshooting
+    } else if (wave_x <= 0) {
+        wave_direction = 1;
+        wave_x = 0;  // Prevent overshooting
+    }
+}
+
 static void draw_wave(void) {
     for (int i = 0; i < ENEMY_ROWS * ENEMY_COLS; i++) {
         if (wave[i].alive) {
-            draw_enemy((int)wave[i].x, (int)wave[i].y);
+            float actual_x = wave_x + wave[i].x;  // Add wave offset to enemy position
+            draw_enemy(round_float(actual_x), round_float(wave[i].y));
         }
     }
 }
 
-__attribute__((unused))
-static void draw_prism(int x, int y, int size) {
-    draw_line(x - size, y, x, y + size);
-    draw_line(x, y + size, x + size, y);
-    draw_line(x + size, y, x, y - size);
-    draw_line(x, y - size, x - size, y);
-}
-
 static void update_left(float dt) {
     update_player(dt);
+    update_wave(dt);
+    update_bullets(dt);
 }
 
 static void draw_left(float dt) {
     oled_clear();
     draw_wave();
-    draw_player((int)player_x, 120, 4);  // Draw player at bottom of 32-pixel screen
+    draw_bullets();
+    draw_player(round_float(player_x), 120, 4);  // Draw player at bottom of 32-pixel screen
 }
 
 void keyboard_post_init_user(void) {
     init_wave();
+    init_bullets();
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
