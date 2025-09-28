@@ -99,6 +99,11 @@ static float lerp(float start, float end, float t) {
     return start + t * (end - start);
 }
 
+// Tests if a point (px,py) is inside a rectangle defined by its top-left corner (x,y) and size (w,h)
+static bool point_in_rect(int px, int py, int x, int y, int w, int h) {
+    return px >= x && px < x + w && py >= y && py < y + h;
+}
+
 static int round_float(float x) {
     return (x >= 0.0f) ? (int)(x + 0.5f) : (int)(x - 0.5f);
 }
@@ -184,6 +189,23 @@ static void update_bullets(float dt) {
             // Deactivate bullets that go off screen
             if (bullets[i].y < 0) {
                 bullets[i].active = false;
+                continue;
+            }
+
+            // Check collision with enemies
+            for (int j = 0; j < ENEMY_ROWS * ENEMY_COLS; j++) {
+                if (wave[j].alive) {
+                    float enemy_screen_x = wave_x + wave[j].x;  // Add wave offset to enemy position
+                    // Check if bullet hits enemy (enemies are 6x4 pixels)
+                    if (point_in_rect(round_float(bullets[i].x), round_float(bullets[i].y),
+                                    round_float(enemy_screen_x), round_float(wave[j].y),
+                                    6, 6)) {
+                        // Hit! Deactivate both bullet and enemy
+                        bullets[i].active = false;
+                        wave[j].alive = false;
+                        break;  // Bullet can only hit one enemy
+                    }
+                }
             }
         }
     }
@@ -202,12 +224,12 @@ static void update_player(float dt) {
     player_x += player_speed * player_direction * dt;
 
     // Check bounds and reverse direction
-    if (player_x >= 28) { // Screen width (32) - player width (4)
+    if (player_x >= 31) { // Screen width (32) - player width (4)
         player_direction = -1;
-        player_x = 28;  // Prevent overshooting
-    } else if (player_x <= 4) { // Player width
+        player_x = 31;  // Prevent overshooting
+    } else if (player_x <= 0) { // Player width
         player_direction = 1;
-        player_x = 4;  // Prevent overshooting
+        player_x = 0;  // Prevent overshooting
     }
 }
 
@@ -277,7 +299,24 @@ static void init_wave(void) {
     }
 }
 
+static bool check_wave_cleared(void) {
+    for (int i = 0; i < ENEMY_ROWS * ENEMY_COLS; i++) {
+        if (wave[i].alive) {
+            return false;  // Found a living enemy
+        }
+    }
+    return true;  // All enemies are dead
+}
+
 static void update_wave(float dt) {
+    // Check if wave is cleared
+    if (check_wave_cleared()) {
+        init_wave();  // Spawn new wave
+        init_bullets();
+        wave_x = 0;   // Reset wave position
+        return;
+    }
+
     // Move wave horizontally
     wave_x += wave_speed * wave_direction * dt;
 
