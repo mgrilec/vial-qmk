@@ -5,7 +5,8 @@
 #define ENEMY_ROWS 4
 #define ENEMY_COLS 4
 #define ENEMY_SPACING 8
-#define MAX_BULLETS 8  // Maximum number of bullets on screen at once
+#define MAX_BULLETS 64  // Maximum number of bullets on screen at once
+#define BULLET_SPEED -60.0f  // Pixels per second
 
 typedef struct {
     float x;
@@ -169,7 +170,7 @@ static void shoot_bullet(float x, float y) {
             bullets[i].x = x;
             bullets[i].y = y;
             bullets[i].active = true;
-            bullets[i].speed = -30.0f;  // Negative speed means moving up
+            bullets[i].speed = BULLET_SPEED;  // Negative speed means moving up
             return;
         }
     }
@@ -319,7 +320,8 @@ void keyboard_post_init_user(void) {
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
-        scale = scale_max;
+        // Shoot a bullet from the player's position (centered above the player)
+        shoot_bullet(player_x, 116);
     }
     return true; // Return true to continue processing the key press
 }
